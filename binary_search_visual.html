@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Binary Search Visualized</title>
+  <style>
+    body { background: #1f1f1f; color: white; font-family: Arial, sans-serif; text-align: center; padding: 40px; }
+    h1 { color: #00d9ff; }
+    #array-container { display: flex; justify-content: center; margin: 40px 0; flex-wrap: wrap; }
+    .box {
+      width: 50px;
+      height: 50px;
+      margin: 5px;
+      background: #333;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      border-radius: 6px;
+      transition: all 0.3s ease;
+    }
+    .searching { background-color: #ffaa00; }
+    .found { background-color: #00ff88; }
+    .skipped { background-color: #555; }
+    input, button {
+      padding: 10px;
+      margin: 10px;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+    button { background-color: #00d9ff; color: white; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Binary Search Visualized</h1>
+  <div id="array-container"></div>
+  <div>
+    <input type="number" id="search-value" placeholder="Search for..." />
+    <button onclick="startSearch()">Start Search</button>
+  </div>
+
+  <script src="binarySearch.js"></script>
+</body>
+</html>
