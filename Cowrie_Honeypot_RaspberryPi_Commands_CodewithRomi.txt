@@ -1,0 +1,30 @@
+
+Cowrie Honeypot Setup - Terminal Commands for Raspberry Pi
+==========================================================
+
+1. Update and install dependencies:
+   sudo apt update
+   sudo apt install git python3-venv libssl-dev libffi-dev build-essential \
+   python3-dev libpython3-dev libbz2-dev libsqlite3-dev libreadline-dev \
+   libncursesw5-dev libgdbm-dev libc6-dev zlib1g-dev -y
+
+2. Clone Cowrie repository:
+   git clone https://github.com/cowrie/cowrie.git
+   cd cowrie
+
+3. Create and activate virtual environment:
+   python3 -m venv cowrie-env
+   source cowrie-env/bin/activate
+
+4. Install Cowrie Python dependencies:
+   pip install --upgrade pip
+   pip install -r requirements.txt
+
+5. Copy default config and customize if needed:
+   cp etc/cowrie.cfg.dist etc/cowrie.cfg
+
+6. Start the Cowrie honeypot:
+   bin/cowrie start
+
+7. View Cowrie logs:
+   tail -f var/log/cowrie/cowrie.log
