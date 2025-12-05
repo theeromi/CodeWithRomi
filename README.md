@@ -44,7 +44,7 @@ This project creates an autonomous monitoring system that:
 
 ## ✨ Features
 
-### Current (Episode 4)
+### Current (Episode 3)
 - ✅ Automated SSH monitoring
 - ✅ Error pattern detection
 - ✅ Local AI analysis (Phi-3 3.8B)
@@ -52,7 +52,7 @@ This project creates an autonomous monitoring system that:
 - ✅ Comprehensive logging
 - ✅ Multiple model support
 
-### Coming Soon (Episodes 5-6)
+### Coming Soon (Episodes 4-5)
 - 🔄 Automatic fix application
 - 🔁 Automatic rollback on failure
 - 🎯 Three-tier AI system (Local → Groq → Claude)
@@ -678,7 +678,7 @@ Watch the complete build process on YouTube: [@CodeWithRomii](https://www.youtub
 1. **[Episode 1: Project Introduction](https://youtu.be/HZ20g1LwsBc?si=sYld6b8AOCaG_1On)** - Overview, architecture, and why we're building this
 2. **[Episode 1.5: Ubuntu Installation](https://youtu.be/NDCxRg60-Lk?si=FauJ82leeESLo7vT)** - Installing Ubuntu 24.04 on external SSD
 3. **[Episode 2: Installing Ollama](https://youtu.be/yZGCeu2VATU?si=_GRHEoJLvJGz7HJg)** - Setting up local AI with Ollama and DeepSeek Coder
-4. **[Episode 3: Building the Monitoring System](LINK)** - Python scripts, SSH automation, Discord integration
+4. **[Episode 3: Building the Monitoring System](https://youtu.be/x6_LDU6i1tM)** - Python scripts, SSH automation, Discord integration
 5. **Episode 4: Automation & Auto-Fix** *(Coming Soon)* - Cron jobs, automatic fixes, rollback
 6. **Episode 5: Production Deployment** *(Coming Soon)* - NAS integration, safety checks, final testing
 
