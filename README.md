@@ -124,7 +124,7 @@ Found a bug or want to improve the tutorial? Feel free to:
 
 ## 📺 Watch the Tutorial
 
-Check out the [CodeWithRomi YouTube channel](https://www.youtube.com/@CodeWithRomi) for the complete video series!
+Check out the [CodeWithRomi YouTube channel](https://www.youtube.com/@CodeWithRomii) for the complete video series!
 
 ## 🙏 Acknowledgments
 
