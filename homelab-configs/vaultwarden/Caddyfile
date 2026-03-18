@@ -1,0 +1,6 @@
+{$VW_DOMAIN} {
+    reverse_proxy vaultwarden:80
+    tls {
+        get_certificate tailscale
+    }
+}

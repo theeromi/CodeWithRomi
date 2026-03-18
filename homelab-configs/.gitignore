@@ -1,0 +1,9 @@
+.env
+*.env
+**/.env
+**/data/
+**/vw-data/
+**/caddy-data/
+**/caddy-config/
+**/config/
+**/db/
