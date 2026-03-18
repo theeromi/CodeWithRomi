@@ -1,0 +1,853 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Members Only Homelab Guide</title>
+</head>
+<body style="margin: 0; background: #05070b;">
+<div style="font-family: 'Inter', sans-serif; max-width: 860px; margin: 0 auto; color: #e0e0e0; padding: 24px; box-sizing: border-box;">
+
+  <!-- Hero -->
+  <div style="background: linear-gradient(135deg, #0D1117 0%, #0a1628 100%); border: 1px solid #00D4FF33; border-radius: 12px; padding: 40px; text-align: center; margin-bottom: 40px;">
+    <p style="color: #00D4FF; font-size: 14px; letter-spacing: 3px; text-transform: uppercase; margin: 0 0 12px;">Members Only</p>
+    <h1 style="color: #ffffff; font-size: 36px; margin: 0 0 16px; line-height: 1.2;">Complete Homelab Setup Guide - Every Config, Every Command</h1>
+    <p style="color: #8b9ab0; font-size: 18px; margin: 0 0 24px;">Copy-paste ready configs, tested Docker Compose files, and step-by-step implementation for every service in my homelab. This is exactly how I built it.</p>
+    <div style="display: inline-flex; gap: 12px; flex-wrap: wrap; justify-content: center;">
+      <span style="background: #00D4FF22; color: #00D4FF; padding: 6px 14px; border-radius: 20px; font-size: 13px; border: 1px solid #00D4FF44;">Proxmox</span>
+      <span style="background: #00D4FF22; color: #00D4FF; padding: 6px 14px; border-radius: 20px; font-size: 13px; border: 1px solid #00D4FF44;">Docker</span>
+      <span style="background: #00D4FF22; color: #00D4FF; padding: 6px 14px; border-radius: 20px; font-size: 13px; border: 1px solid #00D4FF44;">Security</span>
+      <span style="background: #00D4FF22; color: #00D4FF; padding: 6px 14px; border-radius: 20px; font-size: 13px; border: 1px solid #00D4FF44;">Monitoring</span>
+      <span style="background: #00D4FF22; color: #00D4FF; padding: 6px 14px; border-radius: 20px; font-size: 13px; border: 1px solid #00D4FF44;">Production Ready</span>
+    </div>
+  </div>
+
+  <!-- Intro -->
+  <p style="color: #8b9ab0; font-size: 17px; line-height: 1.8; margin-bottom: 24px;">This is the complete technical implementation guide for my homelab. No fluff, no theory - just working configs and exact commands. Every service you see in my homelab tour is documented here with the actual files I use in production.</p>
+
+  <p style="color: #8b9ab0; font-size: 17px; line-height: 1.8; margin-bottom: 40px;">I've spent hundreds of hours testing, breaking, and fixing these setups. You're getting the final working version - tested configs, proper security, and everything you need to deploy the same stack.</p>
+
+  <!-- Quick Start Stats -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 60px;">
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 10px; padding: 24px; text-align: center;">
+      <p style="color: #00D4FF; font-size: 32px; font-weight: 900; margin: 0 0 4px;">15+</p>
+      <p style="color: #8b9ab0; font-size: 14px; margin: 0;">Services Configured</p>
+    </div>
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 10px; padding: 24px; text-align: center;">
+      <p style="color: #00D4FF; font-size: 32px; font-weight: 900; margin: 0 0 4px;">25+</p>
+      <p style="color: #8b9ab0; font-size: 14px; margin: 0;">Docker Compose Files</p>
+    </div>
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 10px; padding: 24px; text-align: center;">
+      <p style="color: #00D4FF; font-size: 32px; font-weight: 900; margin: 0 0 4px;">100%</p>
+      <p style="color: #8b9ab0; font-size: 14px; margin: 0;">Production Tested</p>
+    </div>
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 10px; padding: 24px; text-align: center;">
+      <p style="color: #00D4FF; font-size: 32px; font-weight: 900; margin: 0 0 4px;">Zero</p>
+      <p style="color: #8b9ab0; font-size: 14px; margin: 0;">Guesswork Required</p>
+    </div>
+  </div>
+
+  <!-- Infrastructure Overview -->
+  <div style="margin-bottom: 40px;">
+    <h2 style="color: #ffffff; font-size: 24px; border-bottom: 1px solid #1e2d3d; padding-bottom: 12px; margin-bottom: 24px;">Infrastructure Architecture</h2>
+    <p style="color: #8b9ab0; font-size: 16px; line-height: 1.8; margin-bottom: 20px;">Before we dive into configs, here's the complete network topology and how everything connects:</p>
+
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 10px; padding: 24px; margin-bottom: 20px;">
+      <pre style="color: #8b9ab0; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.6; overflow-x: auto; margin: 0;">
+Network: 192.168.1.0/24
+├── Gateway: 192.168.1.1 (Router)
+├── Proxmox HP EliteDesk: 192.168.1.191
+├── Proxmox Lenovo M920q: 192.168.1.251
+│   ├── Dashboard VM: 192.168.1.248 (Ubuntu 24.04, 8GB RAM, 68GB disk)
+│   │   ├── Portainer: 9000
+│   │   ├── Grafana: 3001
+│   │   ├── Prometheus: 9090
+│   │   ├── Vaultwarden: 8080 (via Caddy HTTPS)
+│   │   ├── Uptime Kuma: 3002
+│   │   ├── BookStack: 6875
+│   │   ├── Wall Monitor: 8888
+│   │   └── Homarr: 7575
+│   └── Ghost CMS VM: (Ubuntu, Ghost + Caddy + Cloudflare Tunnel)
+├── UM890 Pro: 192.168.1.187 (Ubuntu 24.04, RTX 3070Ti eGPU)
+│   ├── Ollama: 11434
+│   ├── OpenClaw: Discord bot
+│   └── Node Exporter: 9100
+├── TerraMaster NAS: 192.168.1.197
+│   ├── Discord Bot containers
+│   └── Portainer Agent: 9001
+├── Raspberry Pi 5: 192.168.1.235
+│   └── Portainer Agent: 9001
+└── Mac Mini M4 Pro: 192.168.1.166 (macOS, daily driver)
+
+Tailscale VPN: 100.98.237.70 (Dashboard VM MagicDNS)
+      </pre>
+    </div>
+  </div>
+
+  <!-- Section 1: Base Setup -->
+  <div style="margin-bottom: 40px;">
+    <h2 style="color: #ffffff; font-size: 24px; border-bottom: 1px solid #1e2d3d; padding-bottom: 12px; margin-bottom: 24px;">1) Base System Setup</h2>
+
+    <!-- Proxmox VM Creation -->
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">Dashboard VM Specifications</h3>
+      <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Create your main Docker host VM in Proxmox with these exact specs:</p>
+
+      <div style="background: #0a1628; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+        <p style="color: #ffffff; font-weight: 700; margin: 0 0 12px;">Proxmox VM Settings:</p>
+        <ul style="color: #8b9ab0; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px;">
+          <li><strong style="color: #ffffff;">OS:</strong> Ubuntu 24.04 LTS Server</li>
+          <li><strong style="color: #ffffff;">CPU:</strong> 2 cores (host)</li>
+          <li><strong style="color: #ffffff;">RAM:</strong> 8GB (start with 6GB, expandable)</li>
+          <li><strong style="color: #ffffff;">Disk:</strong> 72GB (start with 32GB, expand later if needed)</li>
+          <li><strong style="color: #ffffff;">Network:</strong> Bridged (vmbr0)</li>
+          <li><strong style="color: #ffffff;">Boot:</strong> UEFI with OVMF (UEFI)</li>
+        </ul>
+      </div>
+
+      <div style="background: #0a1628; border-radius: 8px; padding: 16px;">
+        <p style="color: #ffffff; font-weight: 700; margin: 0 0 12px;">Post-Install Commands:</p>
+        <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0;"><code># Update system
+sudo apt update && sudo apt upgrade -y
+
+# Install essentials
+sudo apt install -y curl wget git vim htop net-tools
+
+# Set static IP (edit netplan)
+sudo nano /etc/netplan/00-installer-config.yaml
+# Apply netplan
+sudo netplan apply
+
+# Set hostname
+sudo hostnamectl set-hostname dashboard
+</code></pre>
+      </div>
+    </div>
+
+    <!-- Docker Installation -->
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">Docker Installation (Production Method)</h3>
+      <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Official Docker Engine installation - no Docker Desktop bloat:</p>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0;"><code># Add Docker's official GPG key
+sudo apt-get update
+sudo apt-get install ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add Docker repository
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Add user to docker group
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Verify installation
+docker --version
+docker compose version
+</code></pre>
+    </div>
+
+    <!-- Tailscale Setup -->
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">Tailscale VPN Setup</h3>
+      <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Zero-config VPN for remote access to your entire homelab:</p>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0;"><code># Install Tailscale
+curl -fsSL https://tailscale.com/install.sh | sh
+
+# Start Tailscale and authenticate
+sudo tailscale up
+
+# Enable MagicDNS and HTTPS certificates
+# (Do this in Tailscale admin console)
+
+# Verify connection
+tailscale status
+</code></pre>
+
+      <p style="color: #8b9ab0; font-size: 14px; line-height: 1.7; margin: 16px 0 0;"><strong style="color: #ffffff;">Pro Tip:</strong> Enable MagicDNS in Tailscale settings so you can access your services via <code style="background: #0a1628; padding: 2px 6px; border-radius: 4px;">https://dashboard.tail[xxx].ts.net</code> instead of IP addresses.</p>
+    </div>
+  </div>
+
+  <!-- Section 2: Container Management -->
+  <div style="margin-bottom: 40px;">
+    <h2 style="color: #ffffff; font-size: 24px; border-bottom: 1px solid #1e2d3d; padding-bottom: 12px; margin-bottom: 24px;">2) Portainer - Docker Management UI</h2>
+
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">Portainer Installation</h3>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0 0 16px;"><code># Create volume for Portainer data
+docker volume create portainer_data
+
+# Run Portainer
+docker run -d \
+  -p 9000:9000 \
+  -p 9443:9443 \
+  --name portainer \
+  --restart=always \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v portainer_data:/data \
+  portainer/portainer-ce:latest
+
+# Access Portainer
+# http://192.168.1.248:9000
+# Create admin account on first login
+</code></pre>
+
+      <p style="color: #8b9ab0; font-size: 14px; line-height: 1.7; margin: 0;"><strong style="color: #ffffff;">What you get:</strong> Web UI to manage all containers across multiple Docker hosts. Add remote environments via Portainer Agent.</p>
+    </div>
+
+    <!-- Portainer Agent Setup -->
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">Connect Remote Hosts (NAS, Raspberry Pi)</h3>
+
+      <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Run this on each remote Docker host you want to manage:</p>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0;"><code># On TerraMaster NAS / Raspberry Pi
+docker run -d \
+  -p 9001:9001 \
+  --name portainer_agent \
+  --restart=always \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /var/lib/docker/volumes:/var/lib/docker/volumes \
+  portainer/agent:latest
+
+# Then in Portainer web UI:
+# Settings -> Environments -> Add Environment
+# Agent -> Enter IP:9001 -> Connect
+</code></pre>
+    </div>
+  </div>
+
+  <!-- Section 3: Monitoring Stack -->
+  <div style="margin-bottom: 40px;">
+    <h2 style="color: #ffffff; font-size: 24px; border-bottom: 1px solid #1e2d3d; padding-bottom: 12px; margin-bottom: 24px;">3) Monitoring Stack (Prometheus + Grafana + Uptime Kuma)</h2>
+
+    <!-- Prometheus Setup -->
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">Prometheus + Node Exporter</h3>
+
+      <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 0 0 16px;"><strong style="color: #ffffff;">File:</strong> <code style="background: #0a1628; padding: 2px 6px; border-radius: 4px;">~/monitoring/docker-compose.yml</code></p>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0 0 16px;"><code>version: '3.8'
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: always
+    ports:
+      - "9100:9100"
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+
+volumes:
+  prometheus-data:
+</code></pre>
+
+      <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 0 0 16px;"><strong style="color: #ffffff;">File:</strong> <code style="background: #0a1628; padding: 2px 6px; border-radius: 4px;">~/monitoring/prometheus.yml</code></p>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0;"><code>global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'dashboard-vm'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  - job_name: 'um890-node'
+    static_configs:
+      - targets: ['192.168.1.187:9100']
+
+  - job_name: 'proxmox-hp'
+    static_configs:
+      - targets: ['192.168.1.191:9100']
+
+  - job_name: 'proxmox-lenovo'
+    static_configs:
+      - targets: ['192.168.1.251:9100']
+</code></pre>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 16px 0 0;"><code># Start Prometheus
+cd ~/monitoring
+docker compose up -d
+
+# Access Prometheus
+# http://192.168.1.248:9090
+</code></pre>
+    </div>
+
+    <!-- Grafana Setup -->
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">Grafana Dashboard</h3>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0;"><code># Create Grafana directory
+mkdir -p ~/grafana
+
+# Run Grafana
+docker run -d \
+  --name=grafana \
+  -p 3001:3000 \
+  --restart=always \
+  -v ~/grafana:/var/lib/grafana \
+  grafana/grafana:latest
+
+# Access Grafana
+# http://192.168.1.248:3001
+# Default login: admin / admin (change on first login)
+
+# Add Prometheus data source:
+# Configuration -> Data Sources -> Add Prometheus
+# URL: http://192.168.1.248:9090
+</code></pre>
+    </div>
+
+    <!-- Uptime Kuma -->
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">Uptime Kuma - Service Monitoring</h3>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0 0 16px;"><code># Install Uptime Kuma
+docker run -d \
+  --name uptime-kuma \
+  -p 3002:3001 \
+  -v ~/uptime-kuma:/app/data \
+  --restart=always \
+  louislam/uptime-kuma:1
+
+# Access Uptime Kuma
+# http://192.168.1.248:3002
+# Create account on first login
+</code></pre>
+
+      <div style="background: #0a1628; border-radius: 8px; padding: 16px;">
+        <p style="color: #ffffff; font-weight: 700; margin: 0 0 12px;">Monitors to Add:</p>
+        <ul style="color: #8b9ab0; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px;">
+          <li><strong>Portainer:</strong> HTTP, http://192.168.1.248:9000, 60s interval</li>
+          <li><strong>Grafana:</strong> HTTP, http://192.168.1.248:3001, 60s interval</li>
+          <li><strong>BookStack:</strong> HTTP, http://192.168.1.248:6875, 60s interval</li>
+          <li><strong>Vaultwarden:</strong> HTTP, http://127.0.0.1:8080, 60s interval</li>
+          <li><strong>Home Router:</strong> Ping, 192.168.1.1, 60s interval</li>
+          <li><strong>YouTube Channel:</strong> HTTP, https://youtube.com/@CodeWithRomii, 120s interval</li>
+        </ul>
+        <p style="color: #8b9ab0; font-size: 14px; line-height: 1.7; margin: 16px 0 0;"><strong style="color: #ffffff;">Discord Notifications:</strong> Settings -> Notifications -> Discord -> Paste webhook URL -> Apply to all monitors</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 4: Password Manager -->
+  <div style="margin-bottom: 40px;">
+    <h2 style="color: #ffffff; font-size: 24px; border-bottom: 1px solid #1e2d3d; padding-bottom: 12px; margin-bottom: 24px;">4) Vaultwarden - Self-Hosted Password Manager</h2>
+
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">Complete Vaultwarden + Caddy Setup</h3>
+
+      <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 0 0 16px;"><strong style="color: #ffffff;">File:</strong> <code style="background: #0a1628; padding: 2px 6px; border-radius: 4px;">~/vaultwarden/docker-compose.yml</code></p>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0;"><code>version: '3.8'
+
+services:
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: always
+    environment:
+      - SIGNUPS_ALLOWED=false  # Disable after creating your account
+      - ADMIN_TOKEN=YOUR_SECURE_RANDOM_TOKEN_HERE
+    volumes:
+      - ./vw-data:/data
+    ports:
+      - "127.0.0.1:8080:80"
+
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./caddy-data:/data
+      - ./caddy-config:/config
+    depends_on:
+      - vaultwarden
+</code></pre>
+
+      <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 16px 0;"><strong style="color: #ffffff;">File:</strong> <code style="background: #0a1628; padding: 2px 6px; border-radius: 4px;">~/vaultwarden/Caddyfile</code></p>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0;"><code>dashboard.tail8427e4.ts.net {
+    reverse_proxy vaultwarden:80
+    tls {
+        get_certificate tailscale
+    }
+}
+</code></pre>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 16px 0 0;"><code># Start Vaultwarden + Caddy
+cd ~/vaultwarden
+docker compose up -d
+
+# Access Vaultwarden
+# https://dashboard.tail8427e4.ts.net
+
+# Create your account, then set SIGNUPS_ALLOWED=false
+# and restart: docker compose restart
+</code></pre>
+    </div>
+  </div>
+
+  <!-- Section 5: Knowledge Management -->
+  <div style="margin-bottom: 40px;">
+    <h2 style="color: #ffffff; font-size: 24px; border-bottom: 1px solid #1e2d3d; padding-bottom: 12px; margin-bottom: 24px;">5) BookStack - Self-Hosted Wiki</h2>
+
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">BookStack + MariaDB Setup</h3>
+
+      <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 0 0 16px;"><strong style="color: #ffffff;">File:</strong> <code style="background: #0a1628; padding: 2px 6px; border-radius: 4px;">~/bookstack/docker-compose.yml</code></p>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0;"><code>version: "3"
+services:
+  bookstack:
+    image: lscr.io/linuxserver/bookstack
+    container_name: bookstack
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - APP_URL=http://192.168.1.248:6875
+      - APP_KEY=base64:GENERATE_YOUR_OWN_KEY_HERE
+      - DB_HOST=bookstack_db
+      - DB_PORT=3306
+      - DB_DATABASE=bookstackapp
+      - DB_USERNAME=bookstack
+      - DB_PASSWORD=bookstack
+    volumes:
+      - ./config:/config
+    ports:
+      - 6875:80
+    restart: unless-stopped
+    depends_on:
+      - bookstack_db
+
+  bookstack_db:
+    image: lscr.io/linuxserver/mariadb
+    container_name: bookstack_db
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - MYSQL_ROOT_PASSWORD=bookstack
+      - MYSQL_DATABASE=bookstackapp
+      - MYSQL_USER=bookstack
+      - MYSQL_PASSWORD=bookstack
+    volumes:
+      - ./db:/config
+    restart: unless-stopped
+</code></pre>
+
+      <div style="background: #0a1628; border-radius: 8px; padding: 16px; margin-top: 16px;">
+        <p style="color: #ffffff; font-weight: 700; margin: 0 0 12px;">Generate APP_KEY:</p>
+        <pre style="background: #000; color: #00D4FF; padding: 12px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0;"><code># Generate APP_KEY
+docker run -it --rm --entrypoint /bin/bash \
+  lscr.io/linuxserver/bookstack:latest -c "appkey"
+
+# Copy the output (starts with base64:...)
+# Paste it into docker-compose.yml as APP_KEY value
+
+# Start BookStack
+cd ~/bookstack
+docker compose up -d
+
+# Access BookStack
+# http://192.168.1.248:6875
+# Default login: admin@admin.com / password
+</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 6: Security -->
+  <div style="margin-bottom: 40px;">
+    <h2 style="color: #ffffff; font-size: 24px; border-bottom: 1px solid #1e2d3d; padding-bottom: 12px; margin-bottom: 24px;">6) Security Hardening (UFW Firewall)</h2>
+
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">UFW Firewall Configuration</h3>
+
+      <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Lock down your Ubuntu servers - allow only what you need:</p>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0;"><code># Install UFW
+sudo apt install ufw -y
+
+# CRITICAL: Allow SSH FIRST (or you'll lock yourself out!)
+sudo ufw allow 22/tcp comment 'SSH'
+
+# Allow Tailscale
+sudo ufw allow 41641/udp comment 'Tailscale'
+
+# Allow Docker services
+sudo ufw allow 9000/tcp comment 'Portainer'
+sudo ufw allow 3001/tcp comment 'Grafana'
+sudo ufw allow 3002/tcp comment 'Uptime Kuma'
+sudo ufw allow 6875/tcp comment 'BookStack'
+sudo ufw allow 8888/tcp comment 'Wall Monitor'
+sudo ufw allow 9090/tcp comment 'Prometheus'
+sudo ufw allow 7575/tcp comment 'Homarr'
+sudo ufw allow 80/tcp comment 'Caddy HTTP'
+sudo ufw allow 443/tcp comment 'Caddy HTTPS'
+
+# Set default policies
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+
+# Enable firewall
+sudo ufw enable
+
+# Check status
+sudo ufw status verbose
+</code></pre>
+
+      <div style="background: #0a1628; border-radius: 8px; padding: 16px; margin-top: 16px;">
+        <p style="color: #ffffff; font-weight: 700; margin: 0 0 8px;">IMPORTANT:</p>
+        <p style="color: #8b9ab0; font-size: 14px; line-height: 1.7; margin: 0;">Always allow SSH (port 22) BEFORE enabling UFW. If you lock yourself out, you'll need to access the VM console through Proxmox to fix it.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 7: Custom Monitoring Dashboard -->
+  <div style="margin-bottom: 40px;">
+    <h2 style="color: #ffffff; font-size: 24px; border-bottom: 1px solid #1e2d3d; padding-bottom: 12px; margin-bottom: 24px;">7) Custom Wall Monitor Dashboard</h2>
+
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">HTML Dashboard with Prometheus Integration</h3>
+
+      <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Real-time metrics for all your devices displayed on a single page - perfect for a dedicated monitor or iPad.</p>
+
+      <div style="background: #0a1628; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+        <p style="color: #ffffff; font-weight: 700; margin: 0 0 12px;">Features:</p>
+        <ul style="color: #8b9ab0; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px;">
+          <li>18 circular gauges showing CPU, RAM, Disk, GPU, Network for each device</li>
+          <li>YouTube subscriber/view count integration</li>
+          <li>Auto-refresh every 5-10 seconds</li>
+          <li>Color-coded (green/orange/red based on thresholds)</li>
+          <li>Served via nginx Docker container on port 8888</li>
+        </ul>
+      </div>
+
+      <p style="color: #8b9ab0; font-size: 14px; line-height: 1.7; margin: 0;"><strong style="color: #ffffff;">Complete source code:</strong> Available in members-only GitHub repo (link at bottom of this guide)</p>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 16px 0 0;"><code># Serve dashboard with nginx
+docker run -d \
+  --name wall-monitor \
+  -p 8888:80 \
+  -v ~/wall-monitor:/usr/share/nginx/html:ro \
+  --restart=always \
+  nginx:alpine
+
+# Access dashboard
+# http://192.168.1.248:8888
+</code></pre>
+    </div>
+  </div>
+
+  <!-- Section 8: Ghost CMS -->
+  <div style="margin-bottom: 40px;">
+    <h2 style="color: #ffffff; font-size: 24px; border-bottom: 1px solid #1e2d3d; padding-bottom: 12px; margin-bottom: 24px;">8) Ghost CMS + Cloudflare Tunnel (Public Website)</h2>
+
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">Self-Host Your Website Securely</h3>
+
+      <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Run Ghost CMS on Proxmox, expose it via Cloudflare Tunnel - no exposed ports, no reverse proxy complexity.</p>
+
+      <div style="background: #0a1628; border-radius: 8px; padding: 16px;">
+        <p style="color: #ffffff; font-weight: 700; margin: 0 0 12px;">Architecture:</p>
+        <ul style="color: #8b9ab0; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px;">
+          <li><strong>Ghost:</strong> Docker container (port 2368)</li>
+          <li><strong>Caddy:</strong> Reverse proxy with automatic HTTPS</li>
+          <li><strong>Cloudflare Tunnel:</strong> Secure public access without exposing home IP</li>
+          <li><strong>Custom Domain:</strong> codewithromi.com -> Cloudflare -> Tunnel -> Caddy -> Ghost</li>
+        </ul>
+        <p style="color: #8b9ab0; font-size: 14px; line-height: 1.7; margin: 16px 0 0;"><strong style="color: #ffffff;">Full setup guide:</strong> Link to Ghost + Cloudflare tutorial in my free content</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 9: Maintenance & Backups -->
+  <div style="margin-bottom: 40px;">
+    <h2 style="color: #ffffff; font-size: 24px; border-bottom: 1px solid #1e2d3d; padding-bottom: 12px; margin-bottom: 24px;">9) Maintenance and Backup Strategy</h2>
+
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">Automated Backups</h3>
+
+      <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Daily rsync backups from NAS to Mac Mini via launchd:</p>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0;"><code># On Mac Mini: ~/Library/LaunchAgents/com.backup.daily.plist
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.backup.daily</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/rsync</string>
+        <string>-avz</string>
+        <string>--delete</string>
+        <string>user@192.168.1.197:/volume1/docker/</string>
+        <string>/Users/yourusername/Backups/NAS/</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>2</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+</dict>
+</plist>
+
+# Load the backup job
+launchctl load ~/Library/LaunchAgents/com.backup.daily.plist
+</code></pre>
+    </div>
+
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">Docker Cleanup Script</h3>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0;"><code>#!/bin/bash
+# Save as ~/scripts/docker-cleanup.sh
+
+echo "Cleaning up Docker..."
+
+# Remove unused containers
+docker container prune -f
+
+# Remove unused images
+docker image prune -a -f
+
+# Remove unused volumes
+docker volume prune -f
+
+# Remove build cache
+docker builder prune -a -f
+
+echo "Cleanup complete!"
+df -h / | tail -1
+</code></pre>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 16px 0 0;"><code># Make executable
+chmod +x ~/scripts/docker-cleanup.sh
+
+# Add to crontab (run weekly on Sundays at 3am)
+crontab -e
+# Add line: 0 3 * * 0 /home/dimandem/scripts/docker-cleanup.sh
+</code></pre>
+    </div>
+
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">VM Disk Expansion (When Needed)</h3>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0;"><code># In Proxmox: Hardware -> Hard Disk -> Resize -> Add 40GB
+
+# In VM, expand partition and filesystem:
+sudo parted /dev/sda resizepart 3 100%
+sudo pvresize /dev/sda3
+sudo lvextend -l +100%FREE /dev/ubuntu-vg/ubuntu-lv
+sudo resize2fs /dev/ubuntu-vg/ubuntu-lv
+
+# Verify new size
+df -h
+</code></pre>
+    </div>
+  </div>
+
+  <!-- Troubleshooting -->
+  <div style="margin-bottom: 40px;">
+    <h2 style="color: #ffffff; font-size: 24px; border-bottom: 1px solid #1e2d3d; padding-bottom: 12px; margin-bottom: 24px;">Common Issues and Solutions</h2>
+
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">Disk Space Full (100% Usage)</h3>
+
+      <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 0 0 12px;"><strong style="color: #ffffff;">Symptoms:</strong> Services failing randomly, BookStack HTTP 500 errors, Docker containers won't start</p>
+
+      <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 0 0 16px;"><strong style="color: #ffffff;">Solution:</strong></p>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0;"><code># Check disk usage
+df -h
+
+# Find what's using space
+sudo du -h / --max-depth=1 2>/dev/null | sort -hr | head -20
+
+# Clean Docker
+docker system prune -a --volumes -f
+
+# If still full, expand disk (see Section 9)
+</code></pre>
+    </div>
+
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">Container Won't Start</h3>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0;"><code># Check container logs
+docker logs container-name --tail 50
+
+# Check if port is already in use
+sudo netstat -tlnp | grep :PORT
+
+# Restart container
+docker restart container-name
+
+# If using docker-compose
+cd ~/service-directory
+docker compose restart
+docker compose logs
+</code></pre>
+    </div>
+
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">Tailscale Not Connecting</h3>
+
+      <pre style="background: #000; color: #00D4FF; padding: 16px; border-radius: 6px; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 13px; margin: 0;"><code># Check Tailscale status
+tailscale status
+
+# Restart Tailscale
+sudo systemctl restart tailscaled
+
+# Re-authenticate if needed
+sudo tailscale up
+
+# Check if UFW is blocking Tailscale
+sudo ufw allow 41641/udp
+</code></pre>
+    </div>
+
+    <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 12px; padding: 28px; margin-bottom: 20px;">
+      <h3 style="color: #00D4FF; font-size: 18px; margin: 0 0 16px;">Uptime Kuma Shows Service Down (But It's Running)</h3>
+
+      <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 0 0 12px;"><strong style="color: #ffffff;">Issue:</strong> Vaultwarden monitor failing with "getaddrinfo ENOTFOUND dashboard.tail[xxx].ts.net"</p>
+
+      <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 0;"><strong style="color: #ffffff;">Solution:</strong> Docker containers can't resolve Tailscale hostnames. Use local IP instead: <code style="background: #0a1628; padding: 2px 6px; border-radius: 4px;">http://127.0.0.1:8080</code></p>
+    </div>
+  </div>
+
+  <!-- Downloads -->
+  <div style="margin-bottom: 40px;">
+    <h2 style="color: #ffffff; font-size: 24px; border-bottom: 1px solid #1e2d3d; padding-bottom: 12px; margin-bottom: 24px;">Download All Configs</h2>
+
+    <div style="background: linear-gradient(135deg, #0D1117 0%, #0a1628 100%); border: 1px solid #00D4FF44; border-radius: 12px; padding: 32px; text-align: center;">
+      <p style="color: #00D4FF; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; margin: 0 0 12px;">Members-Only GitHub Repository</p>
+      <p style="color: #ffffff; font-size: 22px; font-weight: 700; margin: 0 0 12px;">Complete Config Library</p>
+      <p style="color: #8b9ab0; font-size: 16px; margin: 0 0 24px;">All Docker Compose files, scripts, dashboards, and configs organized by service. Clone the repo and you're 90% done.</p>
+
+      <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 8px; padding: 20px; margin: 0 0 24px; text-align: left;">
+        <p style="color: #ffffff; font-weight: 700; margin: 0 0 12px;">Repository Structure:</p>
+        <pre style="color: #8b9ab0; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.6; margin: 0;">
+homelab-configs/
+├── portainer/
+├── monitoring/
+│   ├── prometheus/
+│   ├── grafana/
+│   └── uptime-kuma/
+├── vaultwarden/
+├── bookstack/
+├── ghost-cms/
+├── wall-monitor/
+├── security/
+│   └── ufw-rules.sh
+├── scripts/
+│   ├── docker-cleanup.sh
+│   └── backup-script.sh
+└── README.md
+        </pre>
+      </div>
+
+      <a href="#members-repo-link" style="background: #00D4FF; color: #0D1117; font-weight: 700; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-size: 16px; display: inline-block;">Access Repository -></a>
+    </div>
+  </div>
+
+  <!-- What's Next -->
+  <div style="margin-bottom: 40px;">
+    <h2 style="color: #ffffff; font-size: 24px; border-bottom: 1px solid #1e2d3d; padding-bottom: 12px; margin-bottom: 24px;">What's Next for Your Homelab</h2>
+
+    <p style="color: #8b9ab0; font-size: 16px; line-height: 1.8; margin-bottom: 24px;">You've now got a production-grade homelab with monitoring, security, and self-hosted services. Here's what to add next:</p>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;">
+      <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 10px; padding: 20px;">
+        <p style="color: #00D4FF; font-size: 18px; margin: 0 0 8px;">Fail2Ban</p>
+        <p style="color: #8b9ab0; font-size: 14px; line-height: 1.7; margin: 0;">Auto-ban SSH brute force attempts. Security Series Part 2 dropping next week.</p>
+      </div>
+
+      <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 10px; padding: 20px;">
+        <p style="color: #00D4FF; font-size: 18px; margin: 0 0 8px;">CrowdSec</p>
+        <p style="color: #8b9ab0; font-size: 14px; line-height: 1.7; margin: 0;">Community-powered threat intelligence. Block attackers before they even try.</p>
+      </div>
+
+      <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 10px; padding: 20px;">
+        <p style="color: #00D4FF; font-size: 18px; margin: 0 0 8px;">Advanced Dashboards</p>
+        <p style="color: #8b9ab0; font-size: 14px; line-height: 1.7; margin: 0;">Custom Grafana dashboards for every service. Pre-built JSON configs included.</p>
+      </div>
+
+      <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 10px; padding: 20px;">
+        <p style="color: #00D4FF; font-size: 18px; margin: 0 0 8px;">AI Integration</p>
+        <p style="color: #8b9ab0; font-size: 14px; line-height: 1.7; margin: 0;">Ollama + OpenClaw setup for local AI with full system access.</p>
+      </div>
+
+      <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 10px; padding: 20px;">
+        <p style="color: #00D4FF; font-size: 18px; margin: 0 0 8px;">Service Templates</p>
+        <p style="color: #8b9ab0; font-size: 14px; line-height: 1.7; margin: 0;">Ready-to-deploy configs for Plex, Jellyfin, Nextcloud, Nginx Proxy Manager, and 20+ more services.</p>
+      </div>
+
+      <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 10px; padding: 20px;">
+        <p style="color: #00D4FF; font-size: 18px; margin: 0 0 8px;">15U Rack Build</p>
+        <p style="color: #8b9ab0; font-size: 14px; line-height: 1.7; margin: 0;">Complete rack setup guide with hardware recommendations and cable management.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Support -->
+  <div style="background: #0D1117; border: 1px solid #1e2d3d; border-radius: 10px; padding: 28px; margin-bottom: 40px;">
+    <h3 style="color: #ffffff; font-size: 20px; margin: 0 0 16px;">Need Help?</h3>
+    <p style="color: #8b9ab0; font-size: 15px; line-height: 1.7; margin: 0 0 16px;">Stuck on something? Drop a comment below or reach out on Discord. As a paid member, you get priority support - I'll personally help you troubleshoot.</p>
+    <p style="color: #8b9ab0; font-size: 14px; line-height: 1.7; margin: 0;"><strong style="color: #ffffff;">Discord:</strong> Link in your welcome email | <strong style="color: #ffffff;">Response time:</strong> Usually within 24 hours</p>
+  </div>
+
+  <!-- Footer CTA -->
+  <div style="background: linear-gradient(135deg, #0D1117 0%, #0a1628 100%); border: 1px solid #00D4FF44; border-radius: 12px; padding: 32px; text-align: center;">
+    <p style="color: #00D4FF; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; margin: 0 0 12px;">Ready to Build?</p>
+    <p style="color: #ffffff; font-size: 22px; font-weight: 700; margin: 0 0 12px;">You've Got Everything You Need</p>
+    <p style="color: #8b9ab0; font-size: 16px; margin: 0;">This is the exact homelab I run in production. Clone the configs, deploy the services, and you'll have a professional self-hosted infrastructure running in a weekend.</p>
+  </div>
+
+</div>
+</body>
+</html>
