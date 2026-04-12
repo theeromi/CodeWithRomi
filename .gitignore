@@ -1,0 +1,46 @@
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Output and cache
+generated_clips/
+image_gen/output/
+*TEMP_MPY_wvf_snd.mp4
+*.transcript.json
+*_clips.json
+.cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Hugging Face cache (models download here; don’t ship)
+# Users get models on first run
+# .cache/ already above if you use a local .cache
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Secrets / local overrides
+.env
+.env.local
+*.local
+
+# User/output data (don’t ship in release)
+*_transcript.json
+*_clips.json
+
+# Optional desktop launcher (user-specific path)
+# Video-Shorts-Pipeline.desktop
+.claude/
+yt_short_script.md

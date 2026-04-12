@@ -1,0 +1,10 @@
+# Core pipeline (see README for Ollama + ffmpeg + CUDA)
+faster-whisper
+moviepy
+pillow
+torch
+diffusers
+transformers
+accelerate
+sentencepiece
+bitsandbytes

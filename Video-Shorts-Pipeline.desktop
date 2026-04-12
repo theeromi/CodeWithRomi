@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Video Shorts Pipeline
+Comment=Transcribe video, find clips, generate TikTok/Shorts
+Exec=/home/dimandem/video-automation/run_gui.sh
+Path=/home/dimandem/video-automation
+Icon=video-x-generic
+Terminal=false
+Categories=AudioVideo;Video;
