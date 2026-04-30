@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import SessionLocal
-from app.models import Chunk, Document
-from app.services import extraction, chunking, ollama, retrieval
+from app.models import Chunk, Document, TransactionLine
+from app.services import bank_parsers, extraction, chunking, ollama, retrieval
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -62,6 +62,15 @@ async def _run(document_id: int) -> None:
                 emb = await ollama.embed(row.text)
                 retrieval.upsert_chunk_vector(db, row.id, emb)
             db.commit()
+
+            _set_status(db, doc, "parsing")
+            txns = bank_parsers.detect_and_parse(text)
+            if txns:
+                for t in txns:
+                    db.add(TransactionLine(document_id=doc.id, **t.to_dict()))
+                db.commit()
+                logger.info("doc %s: parsed %d transaction lines (%s)",
+                            doc.id, len(txns), txns[0].source_format)
 
             _set_status(db, doc, "summarizing")
             summary = await ollama.chat_complete(

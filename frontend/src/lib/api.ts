@@ -67,6 +67,7 @@ export const api = {
     fd.append("file", file);
     return request<DocumentSummary>("/documents", { method: "POST", body: fd }, true);
   },
+  getTransactions: (id: number) => request<TransactionsData>(`/documents/${id}/transactions`),
 
   // search
   search: (q: string) =>
@@ -135,4 +136,42 @@ export interface ChatDetail {
   title: string;
   created_at: string;
   messages: MessageResponse[];
+}
+
+export interface TransactionLine {
+  id: number;
+  ordinal: number;
+  posted_date: string | null;
+  description: string;
+  category: string | null;
+  direction: "debit" | "credit";
+  amount: number;
+  balance_after: number | null;
+  source_format: string;
+}
+
+export interface TransactionExtreme {
+  description: string;
+  posted_date: string | null;
+  amount: number;
+}
+
+export interface TransactionStats {
+  count_total: number;
+  count_debits: number;
+  count_credits: number;
+  total_debits: number;
+  total_credits: number;
+  net: number;
+  max_debit: TransactionExtreme | null;
+  max_credit: TransactionExtreme | null;
+  min_debit: TransactionExtreme | null;
+  min_credit: TransactionExtreme | null;
+}
+
+export interface TransactionsData {
+  document_id: number;
+  source_format: string | null;
+  stats: TransactionStats;
+  lines: TransactionLine[];
 }

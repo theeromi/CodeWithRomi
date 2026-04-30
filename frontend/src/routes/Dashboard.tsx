@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { DocumentCard } from "@/components/DocumentCard";
 import { useToast } from "@/hooks/useToast";
 
-const PROCESSING = new Set(["uploaded", "extracting", "chunking", "embedding", "summarizing"]);
+const PROCESSING = new Set(["uploaded", "extracting", "chunking", "embedding", "parsing", "summarizing"]);
 
 export default function Dashboard() {
   const qc = useQueryClient();

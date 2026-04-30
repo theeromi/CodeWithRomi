@@ -95,3 +95,44 @@ class ChatMessageRequest(BaseModel):
 
 class CreateChatRequest(BaseModel):
     title: str | None = None
+
+
+class TransactionLineResponse(BaseModel):
+    id: int
+    ordinal: int
+    posted_date: str | None
+    description: str
+    category: str | None
+    direction: str
+    amount: float
+    balance_after: float | None
+    source_format: str
+
+    class Config:
+        from_attributes = True
+
+
+class TransactionExtreme(BaseModel):
+    description: str
+    posted_date: str | None
+    amount: float
+
+
+class TransactionStats(BaseModel):
+    count_total: int
+    count_debits: int
+    count_credits: int
+    total_debits: float
+    total_credits: float
+    net: float
+    max_debit: TransactionExtreme | None
+    max_credit: TransactionExtreme | None
+    min_debit: TransactionExtreme | None
+    min_credit: TransactionExtreme | None
+
+
+class TransactionsResponse(BaseModel):
+    document_id: int
+    source_format: str | None
+    stats: TransactionStats
+    lines: list[TransactionLineResponse]

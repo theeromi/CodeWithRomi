@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import (
-    String, Integer, DateTime, ForeignKey, Text, func
+    String, Integer, DateTime, ForeignKey, Text, Float, Date, func
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -46,6 +46,28 @@ class Chunk(Base):
     token_count: Mapped[int] = mapped_column(Integer, default=0)
 
     document: Mapped[Document] = relationship(back_populates="chunks")
+
+
+class TransactionLine(Base):
+    """Structured line items extracted from a recognized financial document
+    (bank statement, invoice, receipt). Populated at ingest by a format-specific
+    parser. Used by the chat endpoint to pre-compute aggregate answers
+    (max/sum/count/list) instead of trusting the LLM with arithmetic."""
+    __tablename__ = "transaction_lines"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), index=True
+    )
+    ordinal: Mapped[int] = mapped_column(Integer)         # source order in the doc
+    posted_date: Mapped[str | None] = mapped_column(String(10), nullable=True)  # ISO yyyy-mm-dd
+    description: Mapped[str] = mapped_column(Text)
+    category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    direction: Mapped[str] = mapped_column(String(8))     # "debit" | "credit"
+    amount: Mapped[float] = mapped_column(Float)          # always positive
+    balance_after: Mapped[float | None] = mapped_column(Float, nullable=True)
+    raw_line: Mapped[str] = mapped_column(Text)
+    source_format: Mapped[str] = mapped_column(String(32))  # e.g. "capital_one"
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
 class Chat(Base):
