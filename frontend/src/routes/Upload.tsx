@@ -58,8 +58,8 @@ export default function UploadPage() {
   });
 
   return (
-    <div className="container max-w-3xl py-10">
-      <h1 className="text-3xl font-semibold tracking-tight">Upload documents</h1>
+    <div className="container max-w-3xl px-4 py-6 md:px-6 md:py-10">
+      <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Upload documents</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         PDF, DOCX, TXT, or Markdown. Files are stored locally and processed by your local Ollama.
       </p>
@@ -67,7 +67,7 @@ export default function UploadPage() {
       <div
         {...getRootProps()}
         className={cn(
-          "mt-8 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-12 text-center transition-colors",
+          "mt-6 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-colors md:mt-8 md:p-12",
           isDragActive
             ? "border-primary bg-primary/5"
             : "border-border hover:border-primary/50 hover:bg-accent/30",

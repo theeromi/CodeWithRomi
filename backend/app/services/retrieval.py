@@ -17,39 +17,42 @@ def upsert_chunk_vector(db: Session, chunk_id: int, embedding: list[float]) -> N
 
 
 def vector_search(
-    db: Session, user_id: int, query_embedding: list[float], top_k: int = 5
+    db: Session,
+    user_id: int,
+    query_embedding: list[float],
+    top_k: int = 5,
+    document_id: int | None = None,
 ) -> list[dict]:
-    """Return top-k chunks for the user, ordered by cosine distance.
+    """Return top-k chunks, ordered by cosine distance.
 
-    sqlite-vec runs KNN globally then we post-filter by user_id, so chunks belonging
-    to other users that rank highly will eat into our k. Over-fetch by a large factor
-    so user-specific results aren't squeezed out. (Proper fix: add user_id as a vec0
-    partition key — schema migration deferred.)
+    sqlite-vec runs KNN globally then we post-filter (by user, optionally doc),
+    so over-fetch by a large factor to avoid losing relevant rows.
+    If `document_id` is set, retrieval is scoped to that single document.
     """
     blob = _serialize_embedding(query_embedding)
     inner_k = max(top_k * 10, 200)
-    rows = db.execute(
-        text(
-            """
-            SELECT
-                c.id          AS chunk_id,
-                c.document_id AS document_id,
-                c.ordinal     AS ordinal,
-                c.text        AS chunk_text,
-                d.filename    AS filename,
-                v.distance    AS distance
-            FROM chunk_vec v
-            JOIN chunks c    ON c.id = v.chunk_id
-            JOIN documents d ON d.id = c.document_id
-            WHERE v.embedding MATCH :q
-              AND d.user_id = :uid
-              AND k = :k
-            ORDER BY v.distance
-            LIMIT :lim
-            """
-        ),
-        {"q": blob, "uid": user_id, "k": inner_k, "lim": top_k},
-    ).mappings().all()
+    sql = """
+        SELECT
+            c.id          AS chunk_id,
+            c.document_id AS document_id,
+            c.ordinal     AS ordinal,
+            c.text        AS chunk_text,
+            d.filename    AS filename,
+            v.distance    AS distance
+        FROM chunk_vec v
+        JOIN chunks c    ON c.id = v.chunk_id
+        JOIN documents d ON d.id = c.document_id
+        WHERE v.embedding MATCH :q
+          AND d.user_id = :uid
+          AND k = :k
+    """
+    params: dict = {"q": blob, "uid": user_id, "k": inner_k, "lim": top_k}
+    if document_id is not None:
+        sql += " AND c.document_id = :did"
+        params["did"] = document_id
+    sql += " ORDER BY v.distance LIMIT :lim"
+
+    rows = db.execute(text(sql), params).mappings().all()
     return [dict(r) for r in rows]
 
 
@@ -81,7 +84,13 @@ def keyword_search(db: Session, user_id: int, query: str, limit: int = 25) -> li
     return [dict(r) for r in rows]
 
 
-def keyword_chunk_search(db: Session, user_id: int, query: str, limit: int = 6) -> list[dict]:
+def keyword_chunk_search(
+    db: Session,
+    user_id: int,
+    query: str,
+    limit: int = 6,
+    document_id: int | None = None,
+) -> list[dict]:
     """FTS5 hits at the chunk level (for hybrid retrieval, not the search UI).
 
     Same row shape as vector_search so the two can be merged trivially.
@@ -89,27 +98,27 @@ def keyword_chunk_search(db: Session, user_id: int, query: str, limit: int = 6) 
     if not query.strip():
         return []
     safe = _sanitize_fts(query)
-    rows = db.execute(
-        text(
-            """
-            SELECT
-                c.id          AS chunk_id,
-                c.document_id AS document_id,
-                c.ordinal     AS ordinal,
-                c.text        AS chunk_text,
-                d.filename    AS filename,
-                bm25(chunks_fts) AS score
-            FROM chunks_fts
-            JOIN chunks c    ON c.id = chunks_fts.rowid
-            JOIN documents d ON d.id = c.document_id
-            WHERE chunks_fts MATCH :q
-              AND d.user_id = :uid
-            ORDER BY score
-            LIMIT :lim
-            """
-        ),
-        {"q": safe, "uid": user_id, "lim": limit},
-    ).mappings().all()
+    sql = """
+        SELECT
+            c.id          AS chunk_id,
+            c.document_id AS document_id,
+            c.ordinal     AS ordinal,
+            c.text        AS chunk_text,
+            d.filename    AS filename,
+            bm25(chunks_fts) AS score
+        FROM chunks_fts
+        JOIN chunks c    ON c.id = chunks_fts.rowid
+        JOIN documents d ON d.id = c.document_id
+        WHERE chunks_fts MATCH :q
+          AND d.user_id = :uid
+    """
+    params: dict = {"q": safe, "uid": user_id, "lim": limit}
+    if document_id is not None:
+        sql += " AND c.document_id = :did"
+        params["did"] = document_id
+    sql += " ORDER BY score LIMIT :lim"
+
+    rows = db.execute(text(sql), params).mappings().all()
     return [dict(r) for r in rows]
 
 
@@ -120,6 +129,7 @@ def hybrid_search(
     query_embedding: list[float],
     vector_k: int = 8,
     keyword_k: int = 6,
+    document_id: int | None = None,
 ) -> list[dict]:
     """Union of vector + FTS5 results, deduped by chunk_id.
 
@@ -128,8 +138,8 @@ def hybrid_search(
     match the document's vocabulary (e.g. asking about 'expenses' on a bank statement
     that uses 'Withdrawal/Debit/Purchase').
     """
-    vec = vector_search(db, user_id, query_embedding, top_k=vector_k)
-    kw = keyword_chunk_search(db, user_id, query_text, limit=keyword_k)
+    vec = vector_search(db, user_id, query_embedding, top_k=vector_k, document_id=document_id)
+    kw = keyword_chunk_search(db, user_id, query_text, limit=keyword_k, document_id=document_id)
 
     seen: set[int] = set()
     out: list[dict] = []

@@ -151,7 +151,13 @@ def create_chat(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> Chat:
-    chat = Chat(user_id=user.id, title=payload.title or "New chat")
+    document_id = payload.document_id
+    if document_id is not None:
+        from app.models import Document
+        doc = db.get(Document, document_id)
+        if not doc or doc.user_id != user.id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
+    chat = Chat(user_id=user.id, title=payload.title or "New chat", document_id=document_id)
     db.add(chat)
     db.commit()
     db.refresh(chat)
@@ -190,7 +196,17 @@ def get_chat(
         )
         for m in chat.messages
     ]
-    return ChatDetail(id=chat.id, title=chat.title, created_at=chat.created_at, messages=msgs)
+    doc_filename = None
+    if chat.document_id:
+        from app.models import Document
+        doc = db.get(Document, chat.document_id)
+        if doc:
+            doc_filename = doc.filename
+    return ChatDetail(
+        id=chat.id, title=chat.title,
+        document_id=chat.document_id, document_filename=doc_filename,
+        created_at=chat.created_at, messages=msgs,
+    )
 
 
 @router.delete("/{chat_id}", status_code=204)
@@ -237,6 +253,7 @@ async def post_message(
             q_emb,
             vector_k=settings.rag_top_k,
             keyword_k=settings.rag_keyword_k,
+            document_id=chat.document_id,  # None = whole vault; otherwise scoped
         )
 
         citations = [

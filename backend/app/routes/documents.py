@@ -105,6 +105,42 @@ def get_status(
     return DocumentStatus(id=doc.id, status=doc.status, error=doc.error)
 
 
+@router.post("/{doc_id}/retry", response_model=DocumentSummary)
+def retry_document(
+    doc_id: int,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Document:
+    """Reset a doc back to 'uploaded' and re-run the ingest pipeline.
+
+    Use after a transient failure (e.g. Ollama was down). Wipes any partial
+    artifacts (chunks, vectors, transactions) so the fresh run is clean.
+    """
+    doc = db.get(Document, doc_id)
+    if not doc or doc.user_id != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
+
+    from sqlalchemy import text as sa_text
+    chunk_ids = [c.id for c in doc.chunks]
+    if chunk_ids:
+        db.execute(sa_text(
+            "DELETE FROM chunk_vec WHERE chunk_id IN (" + ",".join(str(i) for i in chunk_ids) + ")"
+        ))
+    db.execute(sa_text("DELETE FROM chunks WHERE document_id = :did"), {"did": doc.id})
+    db.execute(sa_text("DELETE FROM transaction_lines WHERE document_id = :did"), {"did": doc.id})
+
+    doc.status = "uploaded"
+    doc.error = None
+    doc.summary = None
+    doc.extracted_text = None
+    db.commit()
+    db.refresh(doc)
+
+    background.add_task(run_pipeline, doc.id)
+    return doc
+
+
 @router.get("/{doc_id}/transactions", response_model=TransactionsResponse)
 def get_transactions(
     doc_id: int,

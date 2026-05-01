@@ -62,6 +62,8 @@ export const api = {
     request<{ id: number; status: string; error: string | null }>(`/documents/${id}/status`),
   deleteDocument: (id: number) =>
     request<void>(`/documents/${id}`, { method: "DELETE" }),
+  retryDocument: (id: number) =>
+    request<DocumentSummary>(`/documents/${id}/retry`, { method: "POST" }),
   uploadDocument: async (file: File): Promise<DocumentSummary> => {
     const fd = new FormData();
     fd.append("file", file);
@@ -76,10 +78,10 @@ export const api = {
   // chats
   listChats: () => request<ChatSummary[]>("/chats"),
   getChat: (id: number) => request<ChatDetail>(`/chats/${id}`),
-  createChat: (title?: string) =>
+  createChat: (title?: string, documentId?: number) =>
     request<ChatSummary>("/chats", {
       method: "POST",
-      body: JSON.stringify({ title: title ?? null }),
+      body: JSON.stringify({ title: title ?? null, document_id: documentId ?? null }),
     }),
   deleteChat: (id: number) =>
     request<void>(`/chats/${id}`, { method: "DELETE" }),
@@ -116,6 +118,7 @@ export interface SearchHit {
 export interface ChatSummary {
   id: number;
   title: string;
+  document_id: number | null;
   created_at: string;
 }
 export interface Citation {
@@ -134,6 +137,8 @@ export interface MessageResponse {
 export interface ChatDetail {
   id: number;
   title: string;
+  document_id: number | null;
+  document_filename: string | null;
   created_at: string;
   messages: MessageResponse[];
 }

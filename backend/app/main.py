@@ -50,8 +50,16 @@ def on_startup() -> None:
 
 
 def _ensure_extras() -> None:
-    """Create sqlite-vec virtual table + FTS5 mirror + triggers (idempotent)."""
+    """Create sqlite-vec virtual table + FTS5 mirror + triggers (idempotent).
+    Also retrofits any nullable columns added after the initial schema."""
     with engine.begin() as conn:
+        # Retrofit chats.document_id (added for document-scoped chats). SQLite
+        # doesn't support IF NOT EXISTS on ADD COLUMN, so we probe pragma first.
+        cols = {row[1] for row in conn.execute(text("PRAGMA table_info(chats)")).all()}
+        if "document_id" not in cols:
+            conn.execute(text("ALTER TABLE chats ADD COLUMN document_id INTEGER REFERENCES documents(id) ON DELETE SET NULL"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_chats_document_id ON chats(document_id)"))
+
         conn.execute(text(
             "CREATE VIRTUAL TABLE IF NOT EXISTS chunk_vec USING vec0("
             "chunk_id INTEGER PRIMARY KEY, embedding float[768])"

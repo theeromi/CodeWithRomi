@@ -52,19 +52,29 @@ export default function Dashboard() {
     }
   };
 
+  const onRetry = async (id: number) => {
+    try {
+      await api.retryDocument(id);
+      qc.invalidateQueries({ queryKey: ["documents"] });
+      toast({ title: "Retrying…", description: "Document is being reprocessed." });
+    } catch {
+      toast({ title: "Retry failed", variant: "error" });
+    }
+  };
+
   const empty = docs && docs.length === 0;
   const filteredCount = useMemo(() => (hits ? hits.length : null), [hits]);
 
   return (
-    <div className="container max-w-6xl py-10">
-      <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className="container max-w-6xl px-4 py-6 md:px-6 md:py-10">
+      <div className="mb-6 flex flex-col gap-3 md:mb-8 md:flex-row md:items-end md:justify-between md:gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Your documents</h1>
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Your documents</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Upload PDFs, DOCX, or text files. Everything stays on your machine.
           </p>
         </div>
-        <Button asChild size="lg">
+        <Button asChild size="lg" className="self-start md:self-auto">
           <Link to="/upload"><FilePlus2 size={16} /> Upload</Link>
         </Button>
       </div>
@@ -125,7 +135,7 @@ export default function Dashboard() {
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {docs?.map((d) => (
-            <DocumentCard key={d.id} doc={d} onDelete={onDelete} />
+            <DocumentCard key={d.id} doc={d} onDelete={onDelete} onRetry={onRetry} />
           ))}
         </div>
       )}

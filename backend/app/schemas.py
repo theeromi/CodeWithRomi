@@ -61,6 +61,7 @@ class SearchHit(BaseModel):
 class ChatSummary(BaseModel):
     id: int
     title: str
+    document_id: int | None = None
     created_at: datetime
 
     class Config:
@@ -85,6 +86,8 @@ class MessageResponse(BaseModel):
 class ChatDetail(BaseModel):
     id: int
     title: str
+    document_id: int | None = None
+    document_filename: str | None = None
     created_at: datetime
     messages: list[MessageResponse]
 
@@ -95,6 +98,7 @@ class ChatMessageRequest(BaseModel):
 
 class CreateChatRequest(BaseModel):
     title: str | None = None
+    document_id: int | None = None
 
 
 class TransactionLineResponse(BaseModel):

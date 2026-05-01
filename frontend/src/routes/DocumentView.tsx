@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, MessageSquare, Trash2, Loader2, FileText, Receipt } from "lucide-react";
+import { ArrowLeft, MessageSquare, Trash2, Loader2, FileText, Receipt, RotateCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -44,8 +44,16 @@ export default function DocumentView() {
   };
 
   const onAsk = async () => {
-    const chat = await api.createChat(`Questions about ${doc?.filename}`);
+    if (!doc) return;
+    const chat = await api.createChat(`Questions about ${doc.filename}`, doc.id);
     nav(`/chat/${chat.id}`);
+  };
+
+  const onRetry = async () => {
+    if (!doc) return;
+    await api.retryDocument(doc.id);
+    qc.invalidateQueries({ queryKey: ["document", doc.id] });
+    qc.invalidateQueries({ queryKey: ["documents"] });
   };
 
   if (isLoading || !doc) {
@@ -57,14 +65,14 @@ export default function DocumentView() {
   }
 
   return (
-    <div className="container max-w-6xl py-10">
+    <div className="container max-w-6xl px-4 py-6 md:px-6 md:py-10">
       <Button variant="ghost" size="sm" onClick={() => nav("/")}>
         <ArrowLeft size={14} /> Back
       </Button>
 
       <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{doc.filename}</h1>
+        <div className="min-w-0">
+          <h1 className="break-words text-xl font-semibold tracking-tight md:text-2xl">{doc.filename}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <StatusBadge status={doc.status} />
             <span>·</span>
@@ -73,8 +81,13 @@ export default function DocumentView() {
             <span>{formatDate(doc.created_at)}</span>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={onAsk}>
+        <div className="flex flex-wrap gap-2">
+          {doc.status === "failed" && (
+            <Button variant="outline" onClick={onRetry}>
+              <RotateCw size={14} /> Retry
+            </Button>
+          )}
+          <Button variant="outline" onClick={onAsk} disabled={doc.status !== "ready"}>
             <MessageSquare size={14} /> Ask about this
           </Button>
           <Button variant="ghost" onClick={onDelete}>
