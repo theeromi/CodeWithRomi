@@ -9,6 +9,8 @@ from dataclasses import dataclass, asdict
 from datetime import date
 from typing import Optional
 
+from app.services.merchant_categories import classify as classify_merchant
+
 
 # Map textual months to month numbers (Capital One uses "Oct 1" style).
 _MONTHS = {
@@ -102,13 +104,9 @@ def _parse_capital_one(text: str) -> list[TxnLine]:
             iso = None
 
         desc_raw = re.sub(r"\s+", " ", m.group("desc")).strip()
-        # Strip a trailing single-word "category" token if present
-        # (Capital One's "CATEGORY" column is usually blank, but when present it's
-        # one token like "Other" / "Income" between the merchant and Debit/Credit).
-        category = None
-        # Heuristic: if last token of desc is a known category-ish single word AND
-        # the rest still looks like a description, peel it off.
-        # Skipping for MVP — leave category None; description retains the text.
+        # Capital One has a "CATEGORY" column but it's nearly always blank in
+        # the extracted text. We classify ourselves from the merchant string.
+        category = classify_merchant(desc_raw)
 
         amt = float(m.group("amt").replace(",", ""))
         bal = float(m.group("bal").replace(",", "")) if m.group("bal") else None

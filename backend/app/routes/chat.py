@@ -13,27 +13,29 @@ from app.schemas import (
     CreateChatRequest, MessageResponse,
 )
 from app.services import ollama, retrieval, transactions as txn_svc
+from app.services.merchant_categories import expand_query as expand_category_query
 
 router = APIRouter(prefix="/api/chats", tags=["chat"])
 settings = get_settings()
 
 
 RAG_SYSTEM = (
-    "You are a helpful assistant that answers questions strictly using the provided document excerpts. "
-    "If the answer is not in the excerpts, say you don't know. Do NOT ask the user permission to "
-    "do work — just do it.\n\n"
-    "Citations: ONLY use bracketed numbers like [1], [2] that match the document-excerpt order. "
-    "Never write [pre-computed facts], [facts block], [statement], [doc], or any other citation form — "
-    "only [1]/[2]/etc. that point at numbered excerpts.\n\n"
-    "If the prompt includes a 'PRE-COMPUTED FACTS' block, those numbers were calculated deterministically "
-    "from the source document — TREAT THEM AS GROUND TRUTH and use them verbatim. Do NOT recompute from "
-    "the excerpts; the LLM tends to miscount or miss items. Cite the bracketed excerpt number that the "
-    "facts came from (the same document appears in both the facts block and the excerpts). NEVER mention "
-    "'pre-computed', 'facts block', or the existence of any internal data source — the user doesn't know "
-    "it exists.\n\n"
-    "Financial vocabulary: distinguish credits (deposits, money in, '+', 'Credit') from debits "
-    "(withdrawals, purchases, money out, '-', 'Debit'). 'Expense' / 'spend' / 'spent' = debits only. "
-    "'Income' / 'received' = credits only."
+    "You answer questions about the user's documents.\n\n"
+    "CRITICAL — when the user message includes a section that starts with '— EXACT FIGURES —', "
+    "those numbers are authoritative. Use them WORD-FOR-WORD. Do NOT add up the lines yourself, "
+    "do NOT estimate, do NOT recompute. The total/largest/count fields are correct as given.\n\n"
+    "VOICE — speak as if you read the document yourself. Never say 'pre-computed', 'facts', "
+    "'figures', 'data block', 'I see', 'according to the data', or anything that hints at internal "
+    "machinery. Just answer the question. Examples of forbidden phrases: 'According to the figures', "
+    "'The data shows', 'Per the pre-computed totals'. Examples of allowed phrasing: 'You spent $X on Y', "
+    "'The largest was $Z'.\n\n"
+    "CITATIONS — only use bracketed numbers like [1], [2] that match the numbered document excerpts. "
+    "Never write [figures], [data], [exact], [statement], [doc], etc.\n\n"
+    "FINANCIAL VOCABULARY — credits = deposits / money in / '+' / 'Credit'. Debits = withdrawals, "
+    "purchases, money out, '-' / 'Debit'. 'Spend' / 'spent' / 'expense' = debits only. "
+    "'Income' / 'received' = credits only.\n\n"
+    "If nothing in the excerpts answers the question, say you don't know. Don't ask permission — "
+    "just answer."
 )
 
 
@@ -50,46 +52,97 @@ _AGG_INTENT = re.compile(
 )
 
 
-def _build_precomputed_facts(db: Session, doc_ids: list[int]) -> str | None:
+def _fmt_line(r) -> str:
+    return f"${r.amount:,.2f} on {r.posted_date or '?'}: {r.description}" if r else "—"
+
+
+def _build_precomputed_facts(
+    db: Session, doc_ids: list[int], question: str
+) -> str | None:
     """For each doc with parsed transactions, produce a deterministic facts block
-    the LLM can use as ground truth. Returns None if no doc had structured data."""
+    the LLM can use as ground truth. If the question implies a category set
+    (e.g. 'food' → groceries+dining+delivery), the block scopes to those rows
+    instead of dumping the whole-doc summary."""
+    categories = expand_category_query(question)
     blocks: list[str] = []
     for doc_id in doc_ids:
         if not txn_svc.has_transactions(db, doc_id):
             continue
-        rows = txn_svc.list_for_document(db, doc_id)
-        if not rows:
-            continue
-        stats = txn_svc.summary_stats(db, doc_id)
-        # Use the doc's filename for the header
         from app.models import Document
         doc = db.get(Document, doc_id)
         fname = doc.filename if doc else f"doc#{doc_id}"
 
-        def _fmt(r):
-            return f"${r.amount:,.2f} on {r.posted_date or '?'}: {r.description}" if r else "—"
+        if categories:
+            blocks.append(_facts_block_for_categories(db, doc_id, fname, categories))
+        else:
+            blocks.append(_facts_block_whole_doc(db, doc_id, fname))
 
-        # Top 5 debits + top 5 credits as a quick reference
-        debits_sorted = sorted([r for r in rows if r.direction == "debit"], key=lambda r: -r.amount)[:5]
-        credits_sorted = sorted([r for r in rows if r.direction == "credit"], key=lambda r: -r.amount)[:5]
-        top_debits = "\n    ".join(f"- {_fmt(r)}" for r in debits_sorted) or "    (none)"
-        top_credits = "\n    ".join(f"- {_fmt(r)}" for r in credits_sorted) or "    (none)"
-
-        blocks.append(
-            f"From {fname}:\n"
-            f"  Debits ({stats['count_debits']} lines): total ${stats['total_debits']:,.2f}\n"
-            f"  Credits ({stats['count_credits']} lines): total ${stats['total_credits']:,.2f}\n"
-            f"  Net (credits − debits): ${stats['net']:,.2f}\n"
-            f"  Largest debit: {_fmt(stats['max_debit'])}\n"
-            f"  Smallest debit: {_fmt(stats['min_debit'])}\n"
-            f"  Largest credit: {_fmt(stats['max_credit'])}\n"
-            f"  Smallest credit: {_fmt(stats['min_credit'])}\n"
-            f"  Top 5 debits by amount:\n    {top_debits}\n"
-            f"  Top 5 credits by amount:\n    {top_credits}"
-        )
     if not blocks:
         return None
-    return "PRE-COMPUTED FACTS (deterministic, treat as ground truth):\n\n" + "\n\n".join(blocks)
+    return "— EXACT FIGURES —\n\n" + "\n\n".join(blocks) + "\n\n— END EXACT FIGURES —"
+
+
+def _facts_block_whole_doc(db: Session, doc_id: int, fname: str) -> str:
+    rows = txn_svc.list_for_document(db, doc_id)
+    stats = txn_svc.summary_stats(db, doc_id)
+    breakdown = txn_svc.category_breakdown(db, doc_id)
+
+    debits_sorted = sorted([r for r in rows if r.direction == "debit"], key=lambda r: -r.amount)[:5]
+    credits_sorted = sorted([r for r in rows if r.direction == "credit"], key=lambda r: -r.amount)[:5]
+    top_debits = "\n    ".join(f"- {_fmt_line(r)}" for r in debits_sorted) or "    (none)"
+    top_credits = "\n    ".join(f"- {_fmt_line(r)}" for r in credits_sorted) or "    (none)"
+
+    cat_lines = "\n    ".join(
+        f"- {b['category']:>22}: {b['count']:>3} txns, debits ${b['debit_total']:>10,.2f}, credits ${b['credit_total']:>10,.2f}"
+        for b in breakdown
+    ) or "    (none)"
+
+    return (
+        f"From {fname}:\n"
+        f"  Debits ({stats['count_debits']} lines): total ${stats['total_debits']:,.2f}\n"
+        f"  Credits ({stats['count_credits']} lines): total ${stats['total_credits']:,.2f}\n"
+        f"  Net (credits − debits): ${stats['net']:,.2f}\n"
+        f"  Largest debit: {_fmt_line(stats['max_debit'])}\n"
+        f"  Smallest debit: {_fmt_line(stats['min_debit'])}\n"
+        f"  Largest credit: {_fmt_line(stats['max_credit'])}\n"
+        f"  Smallest credit: {_fmt_line(stats['min_credit'])}\n"
+        f"  Top 5 debits by amount:\n    {top_debits}\n"
+        f"  Top 5 credits by amount:\n    {top_credits}\n"
+        f"  By category:\n    {cat_lines}"
+    )
+
+
+def _facts_block_for_categories(
+    db: Session, doc_id: int, fname: str, categories: set[str]
+) -> str:
+    s = txn_svc.stats_for_categories(db, doc_id, categories)
+    cats = ", ".join(s["categories"])
+    if s["count_total"] == 0:
+        return f"From {fname}: no transactions matched categories [{cats}]."
+
+    # List up to 20 lines (sorted by amount desc among debits, then credits)
+    debits = sorted([r for r in s["lines"] if r.direction == "debit"], key=lambda r: -r.amount)
+    credits_ = sorted([r for r in s["lines"] if r.direction == "credit"], key=lambda r: -r.amount)
+    listing = (debits + credits_)[:20]
+    listing_str = "\n    ".join(
+        f"- {r.posted_date or '?'} {r.direction[:6]:>6} ${r.amount:>9,.2f} [{r.category}] {r.description}"
+        for r in listing
+    ) or "    (none)"
+
+    extra = ""
+    total_in_set = len(s["lines"])
+    if total_in_set > 20:
+        extra = f"\n    (+ {total_in_set - 20} more lines in this category set)"
+
+    return (
+        f"From {fname}, scoped to categories [{cats}]:\n"
+        f"  Matching txns: {s['count_total']} total ({s['count_debits']} debits, {s['count_credits']} credits)\n"
+        f"  Total debits (spend in this set): ${s['total_debits']:,.2f}\n"
+        f"  Total credits (income in this set): ${s['total_credits']:,.2f}\n"
+        f"  Largest debit: {_fmt_line(s['max_debit'])}\n"
+        f"  Largest credit: {_fmt_line(s['max_credit'])}\n"
+        f"  Lines (sorted by amount desc):\n    {listing_str}{extra}"
+    )
 
 
 @router.post("", response_model=ChatSummary, status_code=201)
@@ -199,23 +252,28 @@ async def post_message(
         history = chat.messages[-(settings.chat_history_turns * 2):]
         history_msgs = [{"role": m.role, "content": m.content} for m in history]
 
-        # If the question looks like an aggregate AND any retrieved doc has parsed
-        # transactions, prepend a deterministic facts block so the LLM doesn't have
-        # to reason over raw rows.
+        # If the question looks like an aggregate (or names a category like "food",
+        # "subscriptions", "uber") AND any retrieved doc has parsed transactions,
+        # prepend a deterministic facts block. Category questions get scoped facts;
+        # general aggregates get the whole-doc summary with a category breakdown.
         precomputed = None
-        if _AGG_INTENT.search(payload.content) and hits:
+        category_intent = expand_category_query(payload.content)
+        wants_facts = bool(_AGG_INTENT.search(payload.content) or category_intent)
+        if wants_facts and hits:
             doc_ids_in_hits = list({h["document_id"] for h in hits})
-            precomputed = _build_precomputed_facts(db, doc_ids_in_hits)
+            precomputed = _build_precomputed_facts(db, doc_ids_in_hits, payload.content)
 
         if hits:
             context = "\n\n".join(
                 f"[{i+1}] {h['filename']} (chunk {h['ordinal']}):\n{h['chunk_text']}"
                 for i, h in enumerate(hits)
             )
-            parts = []
+            # Order: excerpts first, then exact figures (so they're the most recent
+            # context the LLM sees), then the question. LLMs attend more to recent
+            # tokens, which makes them more likely to use the figures verbatim.
+            parts = [f"Document excerpts:\n\n{context}"]
             if precomputed:
                 parts.append(precomputed)
-            parts.append(f"Document excerpts:\n\n{context}")
             parts.append(f"Question: {payload.content}")
             user_block = "\n\n".join(parts)
         else:

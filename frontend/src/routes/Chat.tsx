@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Send, Plus, MessageSquare, Loader2, FileText, Trash2 } from "lucide-react";
+import { Send, Plus, MessageSquare, Loader2, FileText, Trash2, CheckSquare, Square, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api, apiBaseUrl, Citation, getToken, MessageResponse } from "@/lib/api";
@@ -32,6 +32,11 @@ export default function Chat() {
   const [streaming, setStreaming] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Multi-select state for the chat sidebar
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const allSelected = !!chats && chats.length > 0 && selectedIds.size === chats.length;
+
   useEffect(() => {
     setLiveMessages(chatDetail ? chatDetail.messages : null);
   }, [chatDetail]);
@@ -53,6 +58,30 @@ export default function Chat() {
     await api.deleteChat(cid);
     qc.invalidateQueries({ queryKey: ["chats"] });
     if (chatId === cid) nav("/chat");
+  };
+
+  const toggleSelected = (cid: number) =>
+    setSelectedIds((s) => {
+      const next = new Set(s);
+      next.has(cid) ? next.delete(cid) : next.add(cid);
+      return next;
+    });
+
+  const exitSelectMode = () => { setSelectMode(false); setSelectedIds(new Set()); };
+
+  const selectAllToggle = () => {
+    if (!chats) return;
+    setSelectedIds(allSelected ? new Set() : new Set(chats.map((c) => c.id)));
+  };
+
+  const deleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} chat${selectedIds.size === 1 ? "" : "s"}? This cannot be undone.`)) return;
+    const ids = [...selectedIds];
+    await Promise.all(ids.map((id) => api.deleteChat(id)));
+    qc.invalidateQueries({ queryKey: ["chats"] });
+    if (chatId !== null && selectedIds.has(chatId)) nav("/chat");
+    exitSelectMode();
   };
 
   const send = async (e: FormEvent) => {
@@ -193,33 +222,79 @@ export default function Chat() {
   return (
     <div className="flex h-screen">
       <div className="flex w-72 shrink-0 flex-col border-r bg-card/30 p-3">
-        <Button onClick={newChat} className="mb-3 w-full justify-start" variant="outline">
-          <Plus size={14} /> New chat
-        </Button>
+        {selectMode ? (
+          <div className="mb-3 flex items-center gap-1">
+            <Button onClick={selectAllToggle} variant="outline" size="sm" className="flex-1 justify-start">
+              {allSelected ? <CheckSquare size={14} /> : <Square size={14} />}
+              {allSelected ? "Unselect all" : "Select all"}
+            </Button>
+            <Button onClick={exitSelectMode} variant="ghost" size="icon" title="Cancel">
+              <X size={14} />
+            </Button>
+          </div>
+        ) : (
+          <div className="mb-3 flex items-center gap-1">
+            <Button onClick={newChat} variant="outline" size="sm" className="flex-1 justify-start">
+              <Plus size={14} /> New chat
+            </Button>
+            {chats && chats.length > 0 && (
+              <Button onClick={() => setSelectMode(true)} variant="ghost" size="icon" title="Select to delete">
+                <CheckSquare size={14} />
+              </Button>
+            )}
+          </div>
+        )}
+
+        {selectMode && selectedIds.size > 0 && (
+          <Button onClick={deleteSelected} variant="destructive" size="sm" className="mb-3 w-full">
+            <Trash2 size={14} /> Delete {selectedIds.size} chat{selectedIds.size === 1 ? "" : "s"}
+          </Button>
+        )}
+
         <div className="flex-1 space-y-1 overflow-y-auto scrollbar-thin">
-          {chats?.map((c) => (
-            <div key={c.id} className="group relative">
-              <Link
-                to={`/chat/${c.id}`}
-                className={cn(
-                  "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
-                  chatId === c.id
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+          {chats?.map((c) => {
+            const checked = selectedIds.has(c.id);
+            return (
+              <div key={c.id} className="group relative">
+                {selectMode ? (
+                  <button
+                    onClick={() => toggleSelected(c.id)}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition",
+                      checked
+                        ? "bg-primary/10 text-foreground ring-1 ring-primary/40"
+                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                    )}
+                  >
+                    {checked ? <CheckSquare size={14} className="shrink-0 text-primary" /> : <Square size={14} className="shrink-0" />}
+                    <span className="truncate">{c.title}</span>
+                  </button>
+                ) : (
+                  <>
+                    <Link
+                      to={`/chat/${c.id}`}
+                      className={cn(
+                        "flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition",
+                        chatId === c.id
+                          ? "bg-accent text-accent-foreground"
+                          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                      )}
+                    >
+                      <MessageSquare size={14} className="shrink-0" />
+                      <span className="truncate">{c.title}</span>
+                    </Link>
+                    <button
+                      onClick={() => removeChat(c.id)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition text-muted-foreground hover:text-destructive"
+                      title="Delete"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </>
                 )}
-              >
-                <MessageSquare size={14} className="shrink-0" />
-                <span className="truncate">{c.title}</span>
-              </Link>
-              <button
-                onClick={() => removeChat(c.id)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition text-muted-foreground hover:text-destructive"
-                title="Delete"
-              >
-                <Trash2 size={12} />
-              </button>
-            </div>
-          ))}
+              </div>
+            );
+          })}
           {chats && chats.length === 0 && (
             <div className="px-3 py-2 text-xs text-muted-foreground">No chats yet</div>
           )}
