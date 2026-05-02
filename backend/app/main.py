@@ -7,6 +7,8 @@ from sqlalchemy import text
 
 from app.config import get_settings
 from app.db import engine
+from app.limits import attach_limits
+from app.middleware import JWTContextMiddleware
 from app.routes import auth, chat, documents, search, settings as settings_route
 from app.services import ollama, settings_store
 
@@ -19,6 +21,9 @@ log = logging.getLogger("vaultai")
 settings = get_settings()
 app = FastAPI(title="VaultAI", version="0.1.0")
 
+# Order matters: JWTContextMiddleware must run before slowapi's per-route
+# decorator check so request.state.user_id is populated for keying.
+app.add_middleware(JWTContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -26,6 +31,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+attach_limits(app)
 
 app.include_router(auth.router)
 app.include_router(documents.router)

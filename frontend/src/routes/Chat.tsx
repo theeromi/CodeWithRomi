@@ -156,9 +156,19 @@ export default function Chat() {
         body: JSON.stringify({ content: question }),
       });
       if (!res.ok || !res.body) {
-        // Try to extract the JSON error detail (FastAPI returns {"detail":"..."}).
+        // Mirror the parser in lib/api.ts: handle slowapi rate-limit shape,
+        // FastAPI quota dict shape, and plain {"detail": "..."}.
         let detail = `HTTP ${res.status}`;
-        try { const body = await res.json(); if (body?.detail) detail = String(body.detail); } catch { /* empty */ }
+        try {
+          const body = await res.json();
+          if (body?.error === "rate_limited" && typeof body.detail === "string") {
+            detail = body.detail;
+          } else if (body?.detail) {
+            if (typeof body.detail === "string") detail = body.detail;
+            else if (typeof body.detail === "object" && typeof body.detail.message === "string") detail = body.detail.message;
+            else detail = JSON.stringify(body.detail);
+          }
+        } catch { /* empty */ }
         throw new Error(detail);
       }
 

@@ -3,13 +3,20 @@ import uuid
 from pathlib import Path
 
 from fastapi import (
-    APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
+    APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile, status
 )
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.config import get_settings
 from app.db import get_db
+from app.limits import (
+    MAX_FILE_SIZE_BYTES,
+    assert_file_under_size,
+    assert_under_document_quota,
+    assert_under_storage_quota,
+    limiter,
+)
 from app.models import Document, User
 from app.schemas import (
     DocumentDetail, DocumentStatus, DocumentSummary,
@@ -23,7 +30,9 @@ settings = get_settings()
 
 
 @router.post("", response_model=DocumentSummary, status_code=201)
+@limiter.limit("5/hour")  # per-user: cap upload bursts
 async def upload(
+    request: Request,
     background: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -38,19 +47,41 @@ async def upload(
             f"Unsupported file type: {mime} ({file.filename}). Supported: PDF, DOCX, TXT, MD.",
         )
 
+    # Quota check #1: count of docs already owned (cheap, before any I/O)
+    assert_under_document_quota(db, user.id)
+
     user_dir = Path(settings.upload_dir) / str(user.id)
     user_dir.mkdir(parents=True, exist_ok=True)
     ext = Path(file.filename).suffix.lower()
     storage_path = user_dir / f"{uuid.uuid4().hex}{ext}"
 
+    # Stream to disk while enforcing the per-file size cap as we write.
     size = 0
-    with storage_path.open("wb") as out:
-        while True:
-            chunk = await file.read(1024 * 1024)
-            if not chunk:
-                break
-            out.write(chunk)
-            size += len(chunk)
+    try:
+        with storage_path.open("wb") as out:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > MAX_FILE_SIZE_BYTES:
+                    out.close()
+                    storage_path.unlink(missing_ok=True)
+                    assert_file_under_size(size)  # raises 413
+                out.write(chunk)
+    except HTTPException:
+        raise
+    except Exception:
+        storage_path.unlink(missing_ok=True)
+        raise
+
+    # Quota check #2: total storage. Done after writing so we have an exact size,
+    # but we already capped per-file above so worst case here is ~50 MB existing.
+    try:
+        assert_under_storage_quota(db, user.id, size)
+    except HTTPException:
+        storage_path.unlink(missing_ok=True)
+        raise
 
     doc = Document(
         user_id=user.id,

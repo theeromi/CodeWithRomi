@@ -33,7 +33,21 @@ async function request<T>(
     let detail = r.statusText;
     try {
       const body = await r.json();
-      if (body?.detail) detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+      // Three FastAPI error shapes we care about:
+      //   1) {"detail": "plain string"}                    — most routes
+      //   2) {"detail": {"error": "...", "message": "..."}} — quota helpers (limits.py)
+      //   3) {"error": "rate_limited", "detail": "..."}     — slowapi 429 handler
+      if (body?.error === "rate_limited" && typeof body.detail === "string") {
+        detail = body.detail;
+      } else if (body?.detail) {
+        if (typeof body.detail === "string") {
+          detail = body.detail;
+        } else if (typeof body.detail === "object" && typeof body.detail.message === "string") {
+          detail = body.detail.message;
+        } else {
+          detail = JSON.stringify(body.detail);
+        }
+      }
     } catch { /* empty */ }
     throw new ApiError(r.status, detail);
   }

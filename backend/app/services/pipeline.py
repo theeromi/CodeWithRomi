@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import SessionLocal
+from app.limits import embedding_semaphore, generation_semaphore
 from app.models import Chunk, Document, TransactionLine
 from app.services import bank_parsers, extraction, chunking, ollama, retrieval
 
@@ -59,7 +60,8 @@ async def _run(document_id: int) -> None:
 
             _set_status(db, doc, "embedding")
             for row in chunk_rows:
-                emb = await ollama.embed(row.text)
+                async with embedding_semaphore:
+                    emb = await ollama.embed(row.text)
                 retrieval.upsert_chunk_vector(db, row.id, emb)
             db.commit()
 
@@ -73,12 +75,13 @@ async def _run(document_id: int) -> None:
                             doc.id, len(txns), txns[0].source_format)
 
             _set_status(db, doc, "summarizing")
-            summary = await ollama.chat_complete(
-                [
-                    {"role": "system", "content": SUMMARY_SYSTEM},
-                    {"role": "user", "content": _truncate_for_summary(text)},
-                ]
-            )
+            async with generation_semaphore:
+                summary = await ollama.chat_complete(
+                    [
+                        {"role": "system", "content": SUMMARY_SYSTEM},
+                        {"role": "user", "content": _truncate_for_summary(text)},
+                    ]
+                )
             doc.summary = summary.strip()
             db.commit()
 

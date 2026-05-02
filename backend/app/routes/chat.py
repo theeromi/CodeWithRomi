@@ -1,12 +1,18 @@
 import json
 import re
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
 from app.auth import get_current_user
 from app.config import get_settings
 from app.db import SessionLocal, get_db
+from app.limits import (
+    MAX_MESSAGES_PER_DAY,
+    embedding_semaphore,
+    generation_semaphore,
+    limiter,
+)
 from app.models import Chat, Message, User
 from app.schemas import (
     ChatDetail, ChatMessageRequest, ChatSummary, Citation,
@@ -223,7 +229,9 @@ def delete_chat(
 
 
 @router.post("/{chat_id}/messages")
+@limiter.limit(f"{MAX_MESSAGES_PER_DAY}/day")  # per-user daily cap on chat messages
 async def post_message(
+    request: Request,
     chat_id: int,
     payload: ChatMessageRequest,
     user: User = Depends(get_current_user),
@@ -245,7 +253,10 @@ async def post_message(
         db.add(user_msg)
         db.commit()
 
-        q_emb = await ollama.embed(payload.content)
+        # Embedding the question is GPU work; cap concurrent embeds across the
+        # whole backend (chat + ingest pipeline both share this).
+        async with embedding_semaphore:
+            q_emb = await ollama.embed(payload.content)
         hits = retrieval.hybrid_search(
             db,
             user.id,
@@ -313,11 +324,17 @@ async def post_message(
             "data": json.dumps([c.model_dump() for c in citations]),
         }
 
+        # Generation is the eGPU's heaviest task; only one at a time. If multiple
+        # users hit chat at the same instant, all but one wait here. Acquired
+        # inside event_gen so the SSE response has already started — the client
+        # gets the citations event immediately and a "Thinking…" placeholder
+        # while it waits its turn.
         full = []
         try:
-            async for token in ollama.chat_stream(messages_for_llm):
-                full.append(token)
-                yield {"event": "token", "data": token}
+            async with generation_semaphore:
+                async for token in ollama.chat_stream(messages_for_llm):
+                    full.append(token)
+                    yield {"event": "token", "data": token}
         except ollama.OllamaError as e:
             yield {"event": "error", "data": str(e)}
             return

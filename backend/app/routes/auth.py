@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.auth import (
@@ -9,6 +9,7 @@ from app.auth import (
 )
 from app.config import get_settings
 from app.db import get_db
+from app.limits import limiter
 from app.models import User
 from app.schemas import LoginRequest, RegisterRequest, TokenResponse, UserResponse
 
@@ -17,7 +18,8 @@ settings = get_settings()
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
-def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> TokenResponse:
+@limiter.limit("3/hour")  # IP-keyed: prevent mass-signup abuse from a single source
+def register(request: Request, payload: RegisterRequest, db: Session = Depends(get_db)) -> TokenResponse:
     if not settings.allow_registration:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Registration is disabled")
     existing = db.query(User).filter(User.email == payload.email).first()
@@ -31,7 +33,8 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> TokenRe
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+@limiter.limit("5/minute")  # IP-keyed: brute-force protection
+def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
     user = db.query(User).filter(User.email == payload.email).first()
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid email or password")
