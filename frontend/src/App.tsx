@@ -7,6 +7,7 @@ import Dashboard from "@/routes/Dashboard";
 import UploadPage from "@/routes/Upload";
 import DocumentView from "@/routes/DocumentView";
 import Chat from "@/routes/Chat";
+import Settings from "@/routes/Settings";
 
 function Protected({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -31,6 +32,7 @@ export default function App() {
       <Route path="/documents/:id" element={<Protected><DocumentView /></Protected>} />
       <Route path="/chat" element={<Protected><Chat /></Protected>} />
       <Route path="/chat/:id" element={<Protected><Chat /></Protected>} />
+      <Route path="/settings" element={<Protected><Settings /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

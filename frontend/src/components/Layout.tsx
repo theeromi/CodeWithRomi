@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { FileText, Upload, MessageSquare, LogOut, Moon, Sun, Sparkles, Menu, X, AlertTriangle } from "lucide-react";
+import { FileText, Upload, MessageSquare, LogOut, Moon, Sun, Sparkles, Menu, X, AlertTriangle, Settings as SettingsIcon } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ const navItems = [
   { to: "/", label: "Documents", icon: FileText, end: true },
   { to: "/upload", label: "Upload", icon: Upload },
   { to: "/chat", label: "Chat", icon: MessageSquare },
+  { to: "/settings", label: "Settings", icon: SettingsIcon },
 ];
 
 interface HealthResponse {

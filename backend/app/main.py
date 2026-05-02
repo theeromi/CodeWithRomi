@@ -7,8 +7,8 @@ from sqlalchemy import text
 
 from app.config import get_settings
 from app.db import engine
-from app.routes import auth, chat, documents, search
-from app.services import ollama
+from app.routes import auth, chat, documents, search, settings as settings_route
+from app.services import ollama, settings_store
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,6 +31,7 @@ app.include_router(auth.router)
 app.include_router(documents.router)
 app.include_router(search.router)
 app.include_router(chat.router)
+app.include_router(settings_route.router)
 
 
 @app.on_event("startup")
@@ -45,8 +46,26 @@ def on_startup() -> None:
 
     Base.metadata.create_all(bind=engine)
     _ensure_extras()
+    _recover_zombie_documents()
     log.info("DB ready at %s", settings.database_url)
     log.info("Ollama endpoint: %s", settings.ollama_base_url)
+
+
+def _recover_zombie_documents() -> None:
+    """If the backend crashed/restarted while a document was mid-pipeline, the
+    in-memory BackgroundTask vanishes but the row stays in a non-terminal status
+    forever. Mark them failed so the user gets a Retry button instead of a
+    permanent spinner."""
+    PROCESSING = ("uploaded", "extracting", "chunking", "embedding", "parsing", "summarizing")
+    placeholders = ",".join(f"'{s}'" for s in PROCESSING)
+    with engine.begin() as conn:
+        result = conn.execute(text(
+            f"UPDATE documents SET status='failed', "
+            f"error='Processing was interrupted (server restart). Click Retry to reprocess.' "
+            f"WHERE status IN ({placeholders})"
+        ))
+        if result.rowcount:
+            log.warning("recovered %d zombie document(s) to failed", result.rowcount)
 
 
 def _ensure_extras() -> None:
@@ -85,9 +104,10 @@ def _ensure_extras() -> None:
 
 @app.get("/api/health")
 async def health() -> dict:
+    # Read live settings — these can be overridden via the Settings page.
     return {
         "status": "ok",
         "ollama": await ollama.health(),
-        "chat_model": settings.ollama_chat_model,
-        "embed_model": settings.ollama_embed_model,
+        "chat_model": settings_store.current_chat_model(),
+        "embed_model": settings_store.current_embed_model(),
     }

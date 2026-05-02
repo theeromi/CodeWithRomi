@@ -98,3 +98,13 @@ class Message(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     chat: Mapped[Chat] = relationship(back_populates="messages")
+
+
+class AppSetting(Base):
+    """Simple key-value store for runtime-mutable configuration.
+    Lets the user change e.g. the chat model from the UI without restarting
+    the container. Falls back to env defaults when a key isn't set."""
+    __tablename__ = "app_settings"
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())

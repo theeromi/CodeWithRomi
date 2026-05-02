@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Send, Plus, MessageSquare, Loader2, FileText, Trash2, CheckSquare, Square, X } from "lucide-react";
+import { Send, Plus, MessageSquare, Loader2, FileText, Trash2, CheckSquare, Square, X, AlertCircle, RotateCw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api, apiBaseUrl, Citation, getToken, MessageResponse } from "@/lib/api";
@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 
 interface LiveMessage extends MessageResponse {
   streaming?: boolean;
+  error?: string;     // network/ollama error, surfaced as a card with retry
+  retryFor?: string;  // the user question this assistant message was answering
 }
 
 export default function Chat() {
@@ -91,10 +93,34 @@ export default function Chat() {
   const send = async (e: FormEvent) => {
     e.preventDefault();
     if (!input.trim() || streaming) return;
+    await sendQuestion(input);
+    setInput("");
+  };
 
+  const retryLast = async (question: string) => {
+    if (streaming) return;
+    // Drop the failed assistant placeholder before re-asking, so the retry
+    // doesn't accumulate ghost messages on screen.
+    setLiveMessages((cur) => {
+      if (!cur) return cur;
+      const next = [...cur];
+      // Remove trailing assistant message if it had an error
+      if (next.length && next[next.length - 1].role === "assistant" && next[next.length - 1].error) {
+        next.pop();
+      }
+      // Also remove the matching user message we'll re-add inside sendQuestion
+      if (next.length && next[next.length - 1].role === "user" && next[next.length - 1].content === question) {
+        next.pop();
+      }
+      return next;
+    });
+    await sendQuestion(question);
+  };
+
+  const sendQuestion = async (question: string) => {
     let activeChatId = chatId;
     if (activeChatId === null) {
-      const c = await api.createChat(input.slice(0, 60));
+      const c = await api.createChat(question.slice(0, 60));
       qc.invalidateQueries({ queryKey: ["chats"] });
       nav(`/chat/${c.id}`, { replace: true });
       activeChatId = c.id;
@@ -103,7 +129,7 @@ export default function Chat() {
     const userMessage: LiveMessage = {
       id: -Date.now(),
       role: "user",
-      content: input,
+      content: question,
       citations: [],
       created_at: new Date().toISOString(),
     };
@@ -114,10 +140,9 @@ export default function Chat() {
       citations: [],
       created_at: new Date().toISOString(),
       streaming: true,
+      retryFor: question,
     };
     setLiveMessages((cur) => [...(cur ?? []), userMessage, assistantPlaceholder]);
-    const question = input;
-    setInput("");
     setStreaming(true);
 
     try {
@@ -130,7 +155,12 @@ export default function Chat() {
         },
         body: JSON.stringify({ content: question }),
       });
-      if (!res.ok || !res.body) throw new Error(`Request failed: ${res.status}`);
+      if (!res.ok || !res.body) {
+        // Try to extract the JSON error detail (FastAPI returns {"detail":"..."}).
+        let detail = `HTTP ${res.status}`;
+        try { const body = await res.json(); if (body?.detail) detail = String(body.detail); } catch { /* empty */ }
+        throw new Error(detail);
+      }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -155,8 +185,8 @@ export default function Chat() {
         const last = next[next.length - 1];
         next[next.length - 1] = {
           ...last,
-          content: last.content + `\n\n_Error: ${(err as Error).message}_`,
           streaming: false,
+          error: (err as Error).message || "Connection lost.",
         };
         return next;
       });
@@ -213,11 +243,7 @@ export default function Chat() {
         if (!cur) return cur;
         const next = [...cur];
         const last = next[next.length - 1];
-        next[next.length - 1] = {
-          ...last,
-          content: last.content + `\n\n_Error: ${data}_`,
-          streaming: false,
-        };
+        next[next.length - 1] = { ...last, streaming: false, error: data || "Generation failed." };
         return next;
       });
     }
@@ -359,7 +385,7 @@ export default function Chat() {
             ) : (
               <div className="space-y-4 md:space-y-6">
                 {messages.map((m) => (
-                  <MessageBubble key={m.id} message={m} />
+                  <MessageBubble key={m.id} message={m} onRetry={retryLast} />
                 ))}
               </div>
             )}
@@ -385,18 +411,45 @@ export default function Chat() {
   );
 }
 
-function MessageBubble({ message }: { message: LiveMessage }) {
+function MessageBubble({
+  message, onRetry,
+}: { message: LiveMessage; onRetry: (q: string) => void }) {
   const isUser = message.role === "user";
+  const hasError = !!message.error;
   return (
     <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
       <div
         className={cn(
           "max-w-[90%] rounded-2xl px-4 py-3 text-sm md:max-w-[85%]",
-          isUser ? "bg-primary text-primary-foreground" : "bg-card border",
+          isUser
+            ? "bg-primary text-primary-foreground"
+            : hasError
+            ? "border border-destructive/30 bg-destructive/5"
+            : "bg-card border",
         )}
       >
         {isUser ? (
           <div className="whitespace-pre-wrap">{message.content}</div>
+        ) : hasError ? (
+          <div className="space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertCircle size={14} className="mt-0.5 shrink-0 text-destructive" />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium text-destructive">Couldn't get an answer</div>
+                <div className="mt-0.5 text-xs text-muted-foreground break-words">{message.error}</div>
+              </div>
+            </div>
+            {message.retryFor && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onRetry(message.retryFor!)}
+                className="h-7"
+              >
+                <RotateCw size={12} /> Retry
+              </Button>
+            )}
+          </div>
         ) : (
           <>
             <div className="prose prose-sm dark:prose-invert max-w-none">

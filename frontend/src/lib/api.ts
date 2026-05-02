@@ -75,6 +75,14 @@ export const api = {
   search: (q: string) =>
     request<SearchHit[]>(`/search?q=${encodeURIComponent(q)}`),
 
+  // settings
+  getSettings: () => request<SettingsData>("/settings"),
+  setChatModel: (chatModel: string) =>
+    request<SettingsData>("/settings/chat-model", {
+      method: "PUT",
+      body: JSON.stringify({ chat_model: chatModel }),
+    }),
+
   // chats
   listChats: () => request<ChatSummary[]>("/chats"),
   getChat: (id: number) => request<ChatDetail>(`/chats/${id}`),
@@ -179,4 +187,19 @@ export interface TransactionsData {
   source_format: string | null;
   stats: TransactionStats;
   lines: TransactionLine[];
+}
+
+export interface ModelInfo {
+  name: string;
+  size: number;
+  parameter_size: string | null;
+  family: string | null;
+  modified_at: string | null;
+}
+
+export interface SettingsData {
+  chat_model: string;
+  embed_model: string;
+  available_models: ModelInfo[];
+  ollama_reachable: boolean;
 }
